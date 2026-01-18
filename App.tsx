@@ -21,7 +21,8 @@ import {
   Facebook,
   Twitter,
   Image as ImageIcon,
-  User
+  User,
+  Type
 } from 'lucide-react';
 import { Input } from './components/Input';
 import { CodeBlock } from './components/CodeBlock';
@@ -52,9 +53,11 @@ const App: React.FC = () => {
     themeColor: '#0b2a4a',
     faviconUrl: 'https://almohoustonairductcleaning.com/img/fav.png',
     appleTouchIconUrl: 'https://almohoustonairductcleaning.com/img/apple-touch-icon.png',
+    logoUrl: 'https://almohoustonairductcleaning.com/img/logo.png',
+    primaryImageUrl: 'https://almohoustonairductcleaning.com/img/air-duct-cleaning-houston.jpg',
     facebookUrl: 'https://www.facebook.com/almoairductcleaning',
     twitterUrl: 'https://twitter.com/almoairduct',
-    couponImageUrl: 'https://almohoustonairductcleaning.com/img/air-duct-cleaning-printable-coupon.jpg',
+    couponImageUrl: '', 
     pageType: 'Home',
     faqs: DEFAULT_FAQS,
     workingHours: {
@@ -63,10 +66,11 @@ const App: React.FC = () => {
       weekendOpens: '09:00',
       weekendCloses: '17:00',
       is247: false
-    }
+    },
+    metaTitle: '',
+    metaDescription: ''
   });
 
-  const [aiContent, setAiContent] = useState({ title: '', description: '' });
   const [isGenerating, setIsGenerating] = useState(false);
   const [newCity, setNewCity] = useState('');
   const [newRelated, setNewRelated] = useState('');
@@ -92,7 +96,11 @@ const App: React.FC = () => {
       formData.pageType,
       formData.relatedServices
     );
-    setAiContent(content);
+    setFormData(prev => ({
+      ...prev,
+      metaTitle: content.title,
+      metaDescription: content.description
+    }));
     setIsGenerating(false);
   };
 
@@ -147,7 +155,8 @@ const App: React.FC = () => {
     const { 
       businessName, baseUrl, phone, email, address, city, state, zip, 
       lat, lng, serviceType, areaServed, relatedServices, themeColor, 
-      faviconUrl, appleTouchIconUrl, facebookUrl, twitterUrl, couponImageUrl, pageType, faqs, workingHours 
+      faviconUrl, appleTouchIconUrl, logoUrl, primaryImageUrl, facebookUrl, twitterUrl, pageType, faqs, workingHours,
+      metaTitle, metaDescription 
     } = formData;
     
     const schemaType = SERVICE_SCHEMA_MAP[serviceType];
@@ -155,8 +164,8 @@ const App: React.FC = () => {
     const pageSlug = pageType === 'Home' ? '' : pageType.toLowerCase().replace(/\s+/g, '-');
     const canonical = pageSlug ? `${canonicalBase}${pageSlug}/` : canonicalBase;
     
-    const safeTitle = aiContent.title || `${businessName} ${pageType} - ${serviceType} ${city}`;
-    const safeDesc = aiContent.description || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for quality service.`;
+    const safeTitle = metaTitle || `${businessName} ${pageType} - ${serviceType} ${city}`;
+    const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for quality service.`;
 
     const breadcrumbs = [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": canonicalBase }
@@ -200,6 +209,8 @@ const App: React.FC = () => {
       "@id": `${canonicalBase}#business`,
       "name": `${businessName}, INC`,
       "url": canonicalBase,
+      "logo": logoUrl,
+      "image": primaryImageUrl,
       "telephone": phone,
       "email": email,
       "priceRange": "$",
@@ -324,7 +335,7 @@ const App: React.FC = () => {
 <meta property="og:description" content="${safeDesc}" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="${canonical}" />
-<meta property="og:image" content="${couponImageUrl}" />
+<meta property="og:image" content="${primaryImageUrl}" />
 <meta property="og:site_name" content="${businessName} ${city} ${state}" />
 ${facebookUrl ? `<meta property="og:see_also" content="${facebookUrl}" />` : ''}
 
@@ -332,7 +343,7 @@ ${facebookUrl ? `<meta property="og:see_also" content="${facebookUrl}" />` : ''}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${safeTitle}">
 <meta name="twitter:description" content="${safeDesc}">
-<meta name="twitter:image" content="${couponImageUrl}">
+<meta name="twitter:image" content="${primaryImageUrl}">
 ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop()}">` : ''}
 
 <!-- ✅ ${pageType} Page Schema -->
@@ -356,7 +367,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
       "about": { "@id": "${canonicalBase}#business" },
       "primaryImageOfPage": {
         "@type": "ImageObject",
-        "url": "${couponImageUrl}"
+        "url": "${primaryImageUrl}"
       }
     }${specificSchema},
     {
@@ -367,7 +378,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
   ]
 }
 </script>`;
-  }, [formData, aiContent]);
+  }, [formData]);
 
   const renderFaqEditor = () => (
     <div className="pt-4 space-y-4">
@@ -522,6 +533,38 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
               </div>
 
               <div className="space-y-5">
+                {/* Meta Content Section */}
+                <div className="pt-2 space-y-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-2 text-blue-800 border-b border-blue-100 pb-2">
+                    <Type size={18} className="text-blue-600" />
+                    <h3 className="font-bold text-sm">Meta Content (Editable)</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-blue-700">Meta Title</label>
+                      <input 
+                        type="text" 
+                        className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                        value={formData.metaTitle}
+                        onChange={(e) => setFormData(p => ({...p, metaTitle: e.target.value}))}
+                        placeholder="SEO Meta Title..."
+                      />
+                      <span className="text-[10px] text-slate-400 self-end font-mono">{formData.metaTitle.length} / 60</span>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-blue-700">Meta Description</label>
+                      <textarea 
+                        rows={3}
+                        className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        value={formData.metaDescription}
+                        onChange={(e) => setFormData(p => ({...p, metaDescription: e.target.value}))}
+                        placeholder="SEO Meta Description..."
+                      />
+                      <span className="text-[10px] text-slate-400 self-end font-mono">{formData.metaDescription.length} / 160</span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Primary Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -551,9 +594,10 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                     <h3 className="font-semibold text-sm">Brand Assets</h3>
                   </div>
                   <div className="space-y-3">
+                    <Input label="Business Logo URL" placeholder="https://domain.com/img/logo.png" value={formData.logoUrl} onChange={(e) => setFormData(p => ({...p, logoUrl: e.target.value}))} />
+                    <Input label="Primary Page Image (Hero)" placeholder="https://domain.com/img/hero.jpg" value={formData.primaryImageUrl} onChange={(e) => setFormData(p => ({...p, primaryImageUrl: e.target.value}))} />
                     <Input label="Favicon URL" placeholder="img/fav.png" value={formData.faviconUrl} onChange={(e) => setFormData(p => ({...p, faviconUrl: e.target.value}))} />
                     <Input label="Apple Touch Icon URL" placeholder="img/apple-touch-icon.png" value={formData.appleTouchIconUrl} onChange={(e) => setFormData(p => ({...p, appleTouchIconUrl: e.target.value}))} />
-                    <Input label="OG/Twitter Image (Coupon)" value={formData.couponImageUrl} onChange={(e) => setFormData(p => ({...p, couponImageUrl: e.target.value}))} />
                   </div>
                 </div>
 
@@ -672,13 +716,13 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Snippet Preview</h3>
                 <div className="max-w-xl">
                   <div className="text-[#1a0dab] text-xl hover:underline cursor-pointer font-medium mb-1 truncate">
-                    {aiContent.title || 'Loading content...'}
+                    {formData.metaTitle || 'Loading title...'}
                   </div>
                   <div className="text-[#006621] text-sm mb-1 truncate">
                     {formData.baseUrl}{formData.pageType !== 'Home' ? formData.pageType.toLowerCase().replace(/\s+/g, '-') + '/' : ''}
                   </div>
                   <div className="text-[#4d5156] text-sm leading-relaxed line-clamp-2 italic">
-                    {aiContent.description || 'Optimizing description...'}
+                    {formData.metaDescription || 'Optimizing description...'}
                   </div>
                 </div>
               </div>
@@ -690,7 +734,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
               <div className="p-4 bg-blue-50 border-t border-blue-100 flex gap-3">
                 <Info className="text-blue-500 shrink-0" size={18} />
                 <p className="text-xs text-blue-800 leading-normal">
-                  <strong>Social Integration:</strong> Facebook and Twitter URLs are now integrated into the Open Graph tags and <code>sameAs</code> schema properties. Favicons and Apple Touch Icons are correctly linked for all devices.
+                  <strong>Branding Power:</strong> Business Logo and Primary Hero Images are now integrated into JSON-LD and OG tags for maximum search visibility and social click-through rates.
                 </p>
               </div>
             </div>

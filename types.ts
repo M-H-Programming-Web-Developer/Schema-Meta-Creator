@@ -40,12 +40,16 @@ export interface SeoData {
   themeColor: string;
   faviconUrl: string;
   appleTouchIconUrl: string;
+  logoUrl: string;
+  primaryImageUrl: string;
   facebookUrl: string;
   twitterUrl: string;
-  couponImageUrl: string;
+  couponImageUrl: string; // Deprecated in favor of primaryImageUrl but kept for compatibility
   pageType: PageType;
   faqs: FAQ[];
   workingHours: WorkingHours;
+  metaTitle: string;
+  metaDescription: string;
 }
 
 export const SERVICE_SCHEMA_MAP: Record<ServiceType, string> = {
