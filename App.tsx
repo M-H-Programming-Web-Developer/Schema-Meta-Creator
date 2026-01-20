@@ -79,8 +79,8 @@ const App: React.FC = () => {
     appleTouchIconUrl: 'https://almohoustonairductcleaning.com/img/apple-touch-icon.png',
     logoUrl: 'https://almohoustonairductcleaning.com/img/logo.png',
     primaryImageUrl: 'https://almohoustonairductcleaning.com/img/air-duct-cleaning-houston.jpg',
-    facebookUrl: 'https://www.facebook.com/almoairductcleaning',
-    twitterUrl: 'https://twitter.com/almoairduct',
+    facebookUrl: '',
+    twitterUrl: '',
     couponImageUrl: '', 
     pageType: 'Home',
     pagePath: '',
@@ -164,15 +164,19 @@ const App: React.FC = () => {
     let parentPath = '';
 
     if (pt === 'Service') {
-      suggestedPath = formData.serviceType.toLowerCase().replace(/\s+/g, '-');
-      parentName = 'Services';
-      parentPath = 'services/';
+      suggestedPath = formData.serviceType.toLowerCase().replace(/\s+/g, '-') + '.html';
+      parentName = '';
+      parentPath = '';
+    } else if (pt === 'Contact') {
+      suggestedPath = 'contact-us.html';
+      parentName = '';
+      parentPath = '';
     } else if (pt === 'Blog Archive') {
       suggestedPath = 'blog/';
-      parentName = 'Home';
-      parentPath = '/';
+      parentName = '';
+      parentPath = '';
     } else if (pt !== 'Home') {
-      suggestedPath = pt.toLowerCase().replace(/\s+/g, '-') + '/';
+      suggestedPath = pt.toLowerCase().replace(/\s+/g, '-') + '.html';
     }
     
     setFormData(p => ({ 
@@ -220,23 +224,6 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, faqs: prev.faqs.filter((_, i) => i !== index) }));
   };
 
-  const updateBlogPost = (index: number, field: keyof BlogPost, value: string) => {
-    const updated = [...formData.blogPosts];
-    updated[index][field] = value;
-    setFormData(prev => ({ ...prev, blogPosts: updated }));
-  };
-
-  const addBlogPost = () => {
-    setFormData(prev => ({ 
-      ...prev, 
-      blogPosts: [...prev.blogPosts, { title: '', url: '', date: '', description: '' }] 
-    }));
-  };
-
-  const removeBlogPost = (index: number) => {
-    setFormData(prev => ({ ...prev, blogPosts: prev.blogPosts.filter((_, i) => i !== index) }));
-  };
-
   const updateWorkingHours = (field: keyof WorkingHours, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -257,7 +244,7 @@ const App: React.FC = () => {
     const canonicalBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     
     const finalSlug = pageType === 'Home' ? '' : (pagePath || pageType.toLowerCase().replace(/\s+/g, '-'));
-    const canonical = finalSlug ? `${canonicalBase}${finalSlug.replace(/^\/+/, '')}${finalSlug.endsWith('/') ? '' : '/'}` : canonicalBase;
+    const canonical = finalSlug ? `${canonicalBase}${finalSlug.replace(/^\/+/, '')}${finalSlug.endsWith('/') ? '' : ''}` : canonicalBase;
     
     const safeTitle = metaTitle || `${businessName} ${pageType} - ${serviceType} ${city}`;
     const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for quality service.`;
@@ -334,9 +321,6 @@ const App: React.FC = () => {
         "latitude": parseFloat(lat) || 0,
         "longitude": parseFloat(lng) || 0
       },
-      "hasMap": `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address} ${city} ${state} ${zip}`)}`,
-      "openingHoursSpecification": openingHoursSpec,
-      "areaServed": areaServed.map(c => ({ "@type": "City", "name": `${c}, ${state}` })),
       "sameAs": socialLinks
     };
 
@@ -432,6 +416,7 @@ const App: React.FC = () => {
     }
 
     return `<!-- ✅ SEO-Edited HEAD (Clean + Modern + Local SEO) -->
+<meta charset="UTF-8">
 <title>${safeTitle}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="${safeDesc}" />
@@ -505,59 +490,6 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
 }
 </script>`;
   }, [formData]);
-
-  const renderBlogPostsEditor = () => (
-    <div className="pt-4 space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-        <div className="flex items-center gap-2 text-slate-800">
-          <Rss size={18} className="text-orange-500" />
-          <h3 className="font-semibold text-sm">Featured Posts for Archive</h3>
-        </div>
-        <button onClick={addBlogPost} className="text-xs text-orange-600 font-bold hover:underline flex items-center gap-1">
-          <Plus size={14} /> Add Post
-        </button>
-      </div>
-      <div className="space-y-4">
-        {formData.blogPosts.map((post, idx) => (
-          <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3 relative group">
-            <button 
-              onClick={() => removeBlogPost(idx)}
-              className="absolute -right-2 -top-2 bg-white border border-red-200 text-red-500 p-1.5 rounded-full shadow-sm hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <Trash2 size={12} />
-            </button>
-            <div className="grid grid-cols-2 gap-3">
-              <input 
-                placeholder="Post Title" 
-                className="col-span-2 w-full bg-transparent font-semibold text-sm outline-none border-b border-slate-200 pb-1 focus:border-orange-400"
-                value={post.title}
-                onChange={(e) => updateBlogPost(idx, 'title', e.target.value)}
-              />
-              <input 
-                placeholder="Relative URL (e.g. blog/post-name/)" 
-                className="w-full bg-transparent text-xs outline-none border-b border-slate-200 pb-1 focus:border-orange-400"
-                value={post.url}
-                onChange={(e) => updateBlogPost(idx, 'url', e.target.value)}
-              />
-              <input 
-                type="date" 
-                className="w-full bg-transparent text-xs outline-none border-b border-slate-200 pb-1 focus:border-orange-400"
-                value={post.date}
-                onChange={(e) => updateBlogPost(idx, 'date', e.target.value)}
-              />
-              <textarea 
-                placeholder="Short Description" 
-                rows={2}
-                className="col-span-2 w-full bg-transparent text-xs text-slate-600 outline-none resize-none"
-                value={post.description}
-                onChange={(e) => updateBlogPost(idx, 'description', e.target.value)}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   const renderFaqEditor = () => (
     <div className="pt-4 space-y-4">
@@ -748,8 +680,6 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                   </div>
                 </div>
 
-                {formData.pageType === 'Blog Archive' && renderBlogPostsEditor()}
-
                 <div className="pt-2 space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <div className="flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-2">
                     <FolderTree size={18} className="text-blue-500" />
@@ -758,10 +688,15 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                   <div className="space-y-4">
                     {formData.pageType !== 'Home' && (
                       <div className="flex flex-col gap-3">
-                        <Input label="Page Path (Slug)" placeholder="air-duct-cleaning" value={formData.pagePath} onChange={(e) => setFormData(p => ({...p, pagePath: e.target.value}))} />
+                        <Input 
+                          label="Page Path (Slug)" 
+                          placeholder={formData.pageType === 'Contact' ? 'contact-us.html' : 'air-duct-cleaning.html'} 
+                          value={formData.pagePath} 
+                          onChange={(e) => setFormData(p => ({...p, pagePath: e.target.value}))} 
+                        />
                         <div className="grid grid-cols-2 gap-3 pt-2">
-                          <Input label="Parent Name" placeholder="Services" value={formData.parentPageName} onChange={(e) => setFormData(p => ({...p, parentPageName: e.target.value}))} />
-                          <Input label="Parent Path" placeholder="services/" value={formData.parentPagePath} onChange={(e) => setFormData(p => ({...p, parentPagePath: e.target.value}))} />
+                          <Input label="Parent Name" placeholder="" value={formData.parentPageName} onChange={(e) => setFormData(p => ({...p, parentPageName: e.target.value}))} />
+                          <Input label="Parent Path" placeholder="" value={formData.parentPagePath} onChange={(e) => setFormData(p => ({...p, parentPagePath: e.target.value}))} />
                         </div>
                       </div>
                     )}
@@ -880,8 +815,8 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                     <h3 className="font-semibold text-sm">Social Profiles</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <Input label="Facebook URL" placeholder="https://facebook.com/page" value={formData.facebookUrl} onChange={(e) => setFormData(p => ({...p, facebookUrl: e.target.value}))} />
-                    <Input label="Twitter / X URL" placeholder="https://x.com/profile" value={formData.twitterUrl} onChange={(e) => setFormData(p => ({...p, twitterUrl: e.target.value}))} />
+                    <Input label="Facebook URL" placeholder="" value={formData.facebookUrl} onChange={(e) => setFormData(p => ({...p, facebookUrl: e.target.value}))} />
+                    <Input label="Twitter / X URL" placeholder="" value={formData.twitterUrl} onChange={(e) => setFormData(p => ({...p, twitterUrl: e.target.value}))} />
                   </div>
                 </div>
 
