@@ -8,11 +8,18 @@ export type ServiceType =
   | 'Locksmith'
   | 'Carpet Cleaning';
 
-export type PageType = 'Home' | 'Service' | 'About' | 'Contact' | 'FAQs' | 'Locations';
+export type PageType = 'Home' | 'Service' | 'About' | 'Contact' | 'FAQs' | 'Locations' | 'Blog Archive';
 
 export interface FAQ {
   question: string;
   answer: string;
+}
+
+export interface BlogPost {
+  title: string;
+  url: string;
+  date: string;
+  description: string;
 }
 
 export interface WorkingHours {
@@ -44,9 +51,13 @@ export interface SeoData {
   primaryImageUrl: string;
   facebookUrl: string;
   twitterUrl: string;
-  couponImageUrl: string; // Deprecated in favor of primaryImageUrl but kept for compatibility
+  couponImageUrl: string; 
   pageType: PageType;
+  pagePath: string; 
+  parentPageName: string; 
+  parentPagePath: string; 
   faqs: FAQ[];
+  blogPosts: BlogPost[];
   workingHours: WorkingHours;
   metaTitle: string;
   metaDescription: string;

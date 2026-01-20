@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Wand2, 
   Code2, 
@@ -22,17 +22,41 @@ import {
   Twitter,
   Image as ImageIcon,
   User,
-  Type
+  Type,
+  ExternalLink,
+  FolderTree,
+  LocateFixed,
+  FileText,
+  Calendar,
+  Rss,
+  Mail,
+  Phone,
+  Share2
 } from 'lucide-react';
 import { Input } from './components/Input';
 import { CodeBlock } from './components/CodeBlock';
-import { SeoData, ServiceType, SERVICE_SCHEMA_MAP, PageType, FAQ, WorkingHours } from './types';
-import { generateSeoContent } from './services/geminiService';
+import { SeoData, ServiceType, SERVICE_SCHEMA_MAP, PageType, FAQ, WorkingHours, BlogPost } from './types';
+import { generateSeoContent, getCoordinates } from './services/geminiService';
 
 const DEFAULT_CITIES = ['Houston', 'Bellaire', 'Pasadena', 'Pearland', 'Sugar Land'];
 const DEFAULT_FAQS: FAQ[] = [
   { question: "How often should I clean my air ducts?", answer: "We recommend professional cleaning every 3-5 years depending on usage and local air quality." },
   { question: "Are your technicians certified?", answer: "Yes, all our service professionals are fully trained, certified, and insured for your peace of mind." }
+];
+
+const DEFAULT_BLOG_POSTS: BlogPost[] = [
+  { 
+    title: "Top Benefits of Professional Air Duct Cleaning", 
+    url: "blog/benefits-of-air-duct-cleaning/", 
+    date: "2024-03-20", 
+    description: "Discover why regular cleaning improves air quality and HVAC efficiency." 
+  },
+  { 
+    title: "How to Tell if Your Dryer Vent is Clogged", 
+    url: "blog/clogged-dryer-vent-signs/", 
+    date: "2024-03-15", 
+    description: "Learn the warning signs of a dangerous lint buildup in your dryer vents." 
+  }
 ];
 
 const App: React.FC = () => {
@@ -59,7 +83,11 @@ const App: React.FC = () => {
     twitterUrl: 'https://twitter.com/almoairduct',
     couponImageUrl: '', 
     pageType: 'Home',
+    pagePath: '',
+    parentPageName: '',
+    parentPagePath: '',
     faqs: DEFAULT_FAQS,
+    blogPosts: DEFAULT_BLOG_POSTS,
     workingHours: {
       weekdayOpens: '08:00',
       weekdayCloses: '19:00',
@@ -72,6 +100,7 @@ const App: React.FC = () => {
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const [newCity, setNewCity] = useState('');
   const [newRelated, setNewRelated] = useState('');
 
@@ -85,9 +114,9 @@ const App: React.FC = () => {
     'Carpet Cleaning'
   ];
 
-  const pageTypes: PageType[] = ['Home', 'Service', 'About', 'Contact', 'FAQs', 'Locations'];
+  const pageTypes: PageType[] = ['Home', 'Service', 'Blog Archive', 'About', 'Contact', 'FAQs', 'Locations'];
 
-  const handleAiGeneration = async () => {
+  const handleAiGeneration = useCallback(async () => {
     setIsGenerating(true);
     const content = await generateSeoContent(
       formData.serviceType, 
@@ -102,11 +131,58 @@ const App: React.FC = () => {
       metaDescription: content.description
     }));
     setIsGenerating(false);
-  };
+  }, [formData.serviceType, formData.city, formData.businessName, formData.pageType, formData.relatedServices]);
 
   useEffect(() => {
-    handleAiGeneration();
+    const timer = setTimeout(() => {
+      handleAiGeneration();
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [formData.serviceType, formData.city, formData.businessName, formData.pageType]);
+
+  useEffect(() => {
+    const fullAddress = `${formData.address}, ${formData.city}, ${formData.state} ${formData.zip}`;
+    if (formData.address.length < 5 || formData.city.length < 2) return;
+    const timer = setTimeout(async () => {
+      setIsGeocoding(true);
+      const coords = await getCoordinates(fullAddress);
+      if (coords) {
+        setFormData(prev => ({
+          ...prev,
+          lat: coords.lat,
+          lng: coords.lng
+        }));
+      }
+      setIsGeocoding(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [formData.address, formData.city, formData.state, formData.zip]);
+
+  const onPageTypeChange = (pt: PageType) => {
+    let suggestedPath = '';
+    let parentName = '';
+    let parentPath = '';
+
+    if (pt === 'Service') {
+      suggestedPath = formData.serviceType.toLowerCase().replace(/\s+/g, '-');
+      parentName = 'Services';
+      parentPath = 'services/';
+    } else if (pt === 'Blog Archive') {
+      suggestedPath = 'blog/';
+      parentName = 'Home';
+      parentPath = '/';
+    } else if (pt !== 'Home') {
+      suggestedPath = pt.toLowerCase().replace(/\s+/g, '-') + '/';
+    }
+    
+    setFormData(p => ({ 
+      ...p, 
+      pageType: pt,
+      pagePath: suggestedPath,
+      parentPageName: parentName,
+      parentPagePath: parentPath
+    }));
+  };
 
   const addCity = () => {
     if (newCity && !formData.areaServed.includes(newCity)) {
@@ -144,6 +220,23 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, faqs: prev.faqs.filter((_, i) => i !== index) }));
   };
 
+  const updateBlogPost = (index: number, field: keyof BlogPost, value: string) => {
+    const updated = [...formData.blogPosts];
+    updated[index][field] = value;
+    setFormData(prev => ({ ...prev, blogPosts: updated }));
+  };
+
+  const addBlogPost = () => {
+    setFormData(prev => ({ 
+      ...prev, 
+      blogPosts: [...prev.blogPosts, { title: '', url: '', date: '', description: '' }] 
+    }));
+  };
+
+  const removeBlogPost = (index: number) => {
+    setFormData(prev => ({ ...prev, blogPosts: prev.blogPosts.filter((_, i) => i !== index) }));
+  };
+
   const updateWorkingHours = (field: keyof WorkingHours, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -155,14 +248,16 @@ const App: React.FC = () => {
     const { 
       businessName, baseUrl, phone, email, address, city, state, zip, 
       lat, lng, serviceType, areaServed, relatedServices, themeColor, 
-      faviconUrl, appleTouchIconUrl, logoUrl, primaryImageUrl, facebookUrl, twitterUrl, pageType, faqs, workingHours,
+      faviconUrl, appleTouchIconUrl, logoUrl, primaryImageUrl, facebookUrl, twitterUrl, 
+      pageType, pagePath, parentPageName, parentPagePath, faqs, blogPosts, workingHours,
       metaTitle, metaDescription 
     } = formData;
     
     const schemaType = SERVICE_SCHEMA_MAP[serviceType];
     const canonicalBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-    const pageSlug = pageType === 'Home' ? '' : pageType.toLowerCase().replace(/\s+/g, '-');
-    const canonical = pageSlug ? `${canonicalBase}${pageSlug}/` : canonicalBase;
+    
+    const finalSlug = pageType === 'Home' ? '' : (pagePath || pageType.toLowerCase().replace(/\s+/g, '-'));
+    const canonical = finalSlug ? `${canonicalBase}${finalSlug.replace(/^\/+/, '')}${finalSlug.endsWith('/') ? '' : '/'}` : canonicalBase;
     
     const safeTitle = metaTitle || `${businessName} ${pageType} - ${serviceType} ${city}`;
     const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for quality service.`;
@@ -172,10 +267,22 @@ const App: React.FC = () => {
     ];
 
     if (pageType !== 'Home') {
+      let currentPos = 2;
+      if (parentPageName && parentPagePath) {
+        const fullParentPath = parentPagePath.startsWith('http') 
+          ? parentPagePath 
+          : `${canonicalBase}${parentPagePath.replace(/^\/+/, '')}${parentPagePath.endsWith('/') ? '' : '/'}`;
+        breadcrumbs.push({
+          "@type": "ListItem",
+          "position": currentPos++,
+          "name": parentPageName,
+          "item": fullParentPath
+        });
+      }
       breadcrumbs.push({ 
         "@type": "ListItem", 
-        "position": 2, 
-        "name": pageType, 
+        "position": currentPos, 
+        "name": pageType === 'Service' ? serviceType : (pageType === 'Blog Archive' ? 'Blog' : pageType), 
         "item": canonical 
       });
     }
@@ -224,8 +331,8 @@ const App: React.FC = () => {
       },
       "geo": {
         "@type": "GeoCoordinates",
-        "latitude": parseFloat(lat),
-        "longitude": parseFloat(lng)
+        "latitude": parseFloat(lat) || 0,
+        "longitude": parseFloat(lng) || 0
       },
       "hasMap": `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address} ${city} ${state} ${zip}`)}`,
       "openingHoursSpecification": openingHoursSpec,
@@ -241,6 +348,7 @@ const App: React.FC = () => {
       "@type": "Service",
       "@id": "${canonical}#service",
       "name": "${serviceType}",
+      "url": "${canonical}",
       "provider": { "@id": "${canonicalBase}#business" },
       "areaServed": ${JSON.stringify(areaServed.map(c => ({ "@type": "City", "name": `${c}, ${state}` })), null, 2).split('\n').join('\n      ')},
       "hasOfferCatalog": {
@@ -253,6 +361,24 @@ const App: React.FC = () => {
           })).join(',\n          ')}
         ]
       }
+    }`;
+    } else if (pageType === 'Blog Archive') {
+      specificSchema = `,
+    {
+      "@type": "Blog",
+      "@id": "${canonical}#blog",
+      "name": "${safeTitle}",
+      "description": "${safeDesc}",
+      "publisher": { "@id": "${canonicalBase}#business" },
+      "blogPost": [
+        ${blogPosts.map(post => JSON.stringify({
+          "@type": "BlogPosting",
+          "headline": post.title,
+          "url": post.url.startsWith('http') ? post.url : `${canonicalBase}${post.url.replace(/^\/+/, '')}`,
+          "datePublished": post.date,
+          "description": post.description
+        })).join(',\n        ')}
+      ]
     }`;
     } else if (pageType === 'Contact') {
       specificSchema = `,
@@ -380,6 +506,59 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
 </script>`;
   }, [formData]);
 
+  const renderBlogPostsEditor = () => (
+    <div className="pt-4 space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="flex items-center gap-2 text-slate-800">
+          <Rss size={18} className="text-orange-500" />
+          <h3 className="font-semibold text-sm">Featured Posts for Archive</h3>
+        </div>
+        <button onClick={addBlogPost} className="text-xs text-orange-600 font-bold hover:underline flex items-center gap-1">
+          <Plus size={14} /> Add Post
+        </button>
+      </div>
+      <div className="space-y-4">
+        {formData.blogPosts.map((post, idx) => (
+          <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3 relative group">
+            <button 
+              onClick={() => removeBlogPost(idx)}
+              className="absolute -right-2 -top-2 bg-white border border-red-200 text-red-500 p-1.5 rounded-full shadow-sm hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <Trash2 size={12} />
+            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <input 
+                placeholder="Post Title" 
+                className="col-span-2 w-full bg-transparent font-semibold text-sm outline-none border-b border-slate-200 pb-1 focus:border-orange-400"
+                value={post.title}
+                onChange={(e) => updateBlogPost(idx, 'title', e.target.value)}
+              />
+              <input 
+                placeholder="Relative URL (e.g. blog/post-name/)" 
+                className="w-full bg-transparent text-xs outline-none border-b border-slate-200 pb-1 focus:border-orange-400"
+                value={post.url}
+                onChange={(e) => updateBlogPost(idx, 'url', e.target.value)}
+              />
+              <input 
+                type="date" 
+                className="w-full bg-transparent text-xs outline-none border-b border-slate-200 pb-1 focus:border-orange-400"
+                value={post.date}
+                onChange={(e) => updateBlogPost(idx, 'date', e.target.value)}
+              />
+              <textarea 
+                placeholder="Short Description" 
+                rows={2}
+                className="col-span-2 w-full bg-transparent text-xs text-slate-600 outline-none resize-none"
+                value={post.description}
+                onChange={(e) => updateBlogPost(idx, 'description', e.target.value)}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   const renderFaqEditor = () => (
     <div className="pt-4 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -487,7 +666,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-2 rounded-lg">
+            <div className="bg-blue-600 p-2 rounded-lg shadow-md">
               <Wand2 className="text-white" size={20} />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-slate-800">SEO Wizard Pro</h1>
@@ -501,12 +680,11 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
       </header>
 
       <main className="max-w-7xl mx-auto px-4 mt-8">
-        {/* Page Type Selector Tabs */}
-        <div className="mb-6 flex overflow-x-auto gap-2 p-1 bg-slate-200/50 rounded-2xl w-fit">
+        <div className="mb-6 flex overflow-x-auto gap-2 p-1 bg-slate-200/50 rounded-2xl w-fit border border-slate-300/30">
           {pageTypes.map(pt => (
             <button
               key={pt}
-              onClick={() => setFormData(p => ({...p, pageType: pt}))}
+              onClick={() => onPageTypeChange(pt)}
               className={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2 ${
                 formData.pageType === pt 
                 ? 'bg-white shadow-md text-blue-600 scale-105' 
@@ -515,6 +693,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
             >
               {pt === 'Home' && <Layout size={14} />}
               {pt === 'Service' && <Layers size={14} />}
+              {pt === 'Blog Archive' && <Rss size={14} />}
               {pt === 'About' && <User size={14} />}
               {pt === 'Contact' && <MessageSquare size={14} />}
               {pt === 'FAQs' && <HelpCircle size={14} />}
@@ -529,17 +708,21 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
             <div className="bg-white rounded-2xl border p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6 text-slate-800">
                 <Settings2 size={20} />
-                <h2 className="font-bold">Global Configuration</h2>
+                <h2 className="font-bold">Configuration</h2>
               </div>
 
               <div className="space-y-5">
-                {/* Meta Content Section */}
                 <div className="pt-2 space-y-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
                   <div className="flex items-center gap-2 text-blue-800 border-b border-blue-100 pb-2">
                     <Type size={18} className="text-blue-600" />
-                    <h3 className="font-bold text-sm">Meta Content (Editable)</h3>
+                    <h3 className="font-bold text-sm">Meta Content (AI Powered)</h3>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-4 relative">
+                    {isGenerating && (
+                       <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
+                          <Loader2 className="text-blue-600 animate-spin" size={24} />
+                       </div>
+                    )}
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-bold text-blue-700">Meta Title</label>
                       <input 
@@ -565,7 +748,27 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                   </div>
                 </div>
 
-                {/* Primary Info */}
+                {formData.pageType === 'Blog Archive' && renderBlogPostsEditor()}
+
+                <div className="pt-2 space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-2 text-slate-800 border-b border-slate-200 pb-2">
+                    <FolderTree size={18} className="text-blue-500" />
+                    <h3 className="font-bold text-sm">Hierarchy & Path</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {formData.pageType !== 'Home' && (
+                      <div className="flex flex-col gap-3">
+                        <Input label="Page Path (Slug)" placeholder="air-duct-cleaning" value={formData.pagePath} onChange={(e) => setFormData(p => ({...p, pagePath: e.target.value}))} />
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <Input label="Parent Name" placeholder="Services" value={formData.parentPageName} onChange={(e) => setFormData(p => ({...p, parentPageName: e.target.value}))} />
+                          <Input label="Parent Path" placeholder="services/" value={formData.parentPagePath} onChange={(e) => setFormData(p => ({...p, parentPagePath: e.target.value}))} />
+                        </div>
+                      </div>
+                    )}
+                    {formData.pageType === 'Home' && <p className="text-xs text-slate-500">Home page is always at the root of the Base URL.</p>}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="text-sm font-semibold text-slate-700 block mb-1">Primary Service</label>
@@ -583,39 +786,102 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                   <div className="col-span-2">
                     <Input label="Base Website URL" placeholder="https://almoairductcleaning.com" value={formData.baseUrl} onChange={(e) => setFormData(p => ({...p, baseUrl: e.target.value}))} />
                   </div>
-                  <Input label="Phone" value={formData.phone} onChange={(e) => setFormData(p => ({...p, phone: e.target.value}))} />
-                  <Input label="Email" value={formData.email} onChange={(e) => setFormData(p => ({...p, email: e.target.value}))} />
+                  
+                  <Input label="Phone Number" placeholder="+1-XXX-XXX-XXXX" value={formData.phone} onChange={(e) => setFormData(p => ({...p, phone: e.target.value}))} />
+                  <Input label="Business Email" placeholder="service@company.com" value={formData.email} onChange={(e) => setFormData(p => ({...p, email: e.target.value}))} />
                 </div>
 
-                {/* Brand Assets */}
+                <div className="pt-2 space-y-4">
+                  <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
+                    <MapPin size={18} className="text-blue-500" />
+                    <h3 className="font-semibold text-sm">Location & Auto-Geo</h3>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="col-span-3">
+                      <Input label="Street Address" value={formData.address} onChange={(e) => setFormData(p => ({...p, address: e.target.value}))} />
+                    </div>
+                    <Input label="City" value={formData.city} onChange={(e) => setFormData(p => ({...p, city: e.target.value}))} />
+                    <Input label="State" value={formData.state} onChange={(e) => setFormData(p => ({...p, state: e.target.value}))} />
+                    <Input label="ZIP" value={formData.zip} onChange={(e) => setFormData(p => ({...p, zip: e.target.value}))} />
+                    
+                    <div className="col-span-3 grid grid-cols-2 gap-4 p-4 bg-amber-50 rounded-xl border border-amber-100 relative overflow-hidden">
+                      {isGeocoding && (
+                        <div className="absolute inset-0 bg-amber-100/30 flex items-center justify-center backdrop-blur-[1px]">
+                          <Loader2 className="text-amber-600 animate-spin" size={20} />
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                          <LocateFixed size={12} /> Latitude
+                        </label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-1.5 border border-amber-200 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+                          value={formData.lat}
+                          onChange={(e) => setFormData(p => ({...p, lat: e.target.value}))}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                          <LocateFixed size={12} /> Longitude
+                        </label>
+                        <input 
+                          type="text" 
+                          className="w-full px-3 py-1.5 border border-amber-200 rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+                          value={formData.lng}
+                          onChange={(e) => setFormData(p => ({...p, lng: e.target.value}))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2 text-slate-800">
+                      <Globe2 size={18} className="text-blue-500" />
+                      <h3 className="font-semibold text-sm">Service Areas</h3>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {formData.areaServed.map(city => (
+                      <span key={city} className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium border border-slate-200">
+                        {city}
+                        <button onClick={() => removeCity(city)}><Trash2 size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" placeholder="Add location..." className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
+                      value={newCity} onChange={(e) => setNewCity(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addCity()}
+                    />
+                    <button onClick={addCity} className="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-sm"><Plus size={16} /></button>
+                  </div>
+                </div>
+
                 <div className="pt-2 space-y-4">
                   <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
                     <ImageIcon size={18} className="text-blue-500" />
                     <h3 className="font-semibold text-sm">Brand Assets</h3>
                   </div>
                   <div className="space-y-3">
-                    <Input label="Business Logo URL" placeholder="https://domain.com/img/logo.png" value={formData.logoUrl} onChange={(e) => setFormData(p => ({...p, logoUrl: e.target.value}))} />
-                    <Input label="Primary Page Image (Hero)" placeholder="https://domain.com/img/hero.jpg" value={formData.primaryImageUrl} onChange={(e) => setFormData(p => ({...p, primaryImageUrl: e.target.value}))} />
-                    <Input label="Favicon URL" placeholder="img/fav.png" value={formData.faviconUrl} onChange={(e) => setFormData(p => ({...p, faviconUrl: e.target.value}))} />
-                    <Input label="Apple Touch Icon URL" placeholder="img/apple-touch-icon.png" value={formData.appleTouchIconUrl} onChange={(e) => setFormData(p => ({...p, appleTouchIconUrl: e.target.value}))} />
+                    <Input label="Logo URL" placeholder="https://domain.com/img/logo.png" value={formData.logoUrl} onChange={(e) => setFormData(p => ({...p, logoUrl: e.target.value}))} />
+                    <Input label="Hero Image URL" placeholder="https://domain.com/img/hero.jpg" value={formData.primaryImageUrl} onChange={(e) => setFormData(p => ({...p, primaryImageUrl: e.target.value}))} />
+                    <Input label="Favicon URL" placeholder="https://domain.com/favicon.png" value={formData.faviconUrl} onChange={(e) => setFormData(p => ({...p, faviconUrl: e.target.value}))} />
+                    <Input label="Apple Touch Icon" placeholder="https://domain.com/apple-icon.png" value={formData.appleTouchIconUrl} onChange={(e) => setFormData(p => ({...p, appleTouchIconUrl: e.target.value}))} />
                   </div>
                 </div>
 
-                {/* Social Links */}
                 <div className="pt-2 space-y-4">
                   <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                    <Globe2 size={18} className="text-blue-500" />
-                    <h3 className="font-semibold text-sm">Social Media</h3>
+                    <Share2 size={18} className="text-blue-500" />
+                    <h3 className="font-semibold text-sm">Social Profiles</h3>
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex gap-3 items-end">
-                      <Facebook size={20} className="text-blue-600 mb-2" />
-                      <div className="flex-1"><Input label="Facebook URL" value={formData.facebookUrl} onChange={(e) => setFormData(p => ({...p, facebookUrl: e.target.value}))} /></div>
-                    </div>
-                    <div className="flex gap-3 items-end">
-                      <Twitter size={20} className="text-slate-800 mb-2" />
-                      <div className="flex-1"><Input label="Twitter / X URL" value={formData.twitterUrl} onChange={(e) => setFormData(p => ({...p, twitterUrl: e.target.value}))} /></div>
-                    </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input label="Facebook URL" placeholder="https://facebook.com/page" value={formData.facebookUrl} onChange={(e) => setFormData(p => ({...p, facebookUrl: e.target.value}))} />
+                    <Input label="Twitter / X URL" placeholder="https://x.com/profile" value={formData.twitterUrl} onChange={(e) => setFormData(p => ({...p, twitterUrl: e.target.value}))} />
                   </div>
                 </div>
 
@@ -646,48 +912,6 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
 
                 {renderHoursEditor()}
                 {formData.pageType === 'FAQs' && renderFaqEditor()}
-
-                <hr className="border-slate-100 my-2" />
-
-                <div className="pt-2 space-y-4">
-                  <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                    <MapPin size={18} className="text-blue-500" />
-                    <h3 className="font-semibold text-sm">Location Details</h3>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-3">
-                      <Input label="Street Address" value={formData.address} onChange={(e) => setFormData(p => ({...p, address: e.target.value}))} />
-                    </div>
-                    <Input label="City" value={formData.city} onChange={(e) => setFormData(p => ({...p, city: e.target.value}))} />
-                    <Input label="State" value={formData.state} onChange={(e) => setFormData(p => ({...p, state: e.target.value}))} />
-                    <Input label="ZIP" value={formData.zip} onChange={(e) => setFormData(p => ({...p, zip: e.target.value}))} />
-                    <Input label="Lat" value={formData.lat} onChange={(e) => setFormData(p => ({...p, lat: e.target.value}))} />
-                    <Input label="Lng" value={formData.lng} onChange={(e) => setFormData(p => ({...p, lng: e.target.value}))} />
-                  </div>
-                </div>
-
-                <div className="pt-4 space-y-4">
-                  <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                    <Globe2 size={18} className="text-blue-500" />
-                    <h3 className="font-semibold text-sm">Service Areas</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.areaServed.map(city => (
-                      <span key={city} className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium border border-slate-200">
-                        {city}
-                        <button onClick={() => removeCity(city)}><Trash2 size={12} /></button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" placeholder="Add location..." className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
-                      value={newCity} onChange={(e) => setNewCity(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addCity()}
-                    />
-                    <button onClick={addCity} className="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-sm"><Plus size={16} /></button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -698,8 +922,8 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                 <div className="flex items-center gap-3">
                   <Code2 className="text-slate-600" size={20} />
                   <div>
-                    <h2 className="font-bold text-slate-800 leading-tight">{formData.pageType} Page Result</h2>
-                    <p className="text-xs text-slate-500">Includes Social, Icons & Schema</p>
+                    <h2 className="font-bold text-slate-800 leading-tight">{formData.pageType} Output</h2>
+                    <p className="text-xs text-slate-500">Live updated JSON-LD & Meta</p>
                   </div>
                 </div>
                 <button 
@@ -708,7 +932,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shadow-lg transition-all"
                 >
                   {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  Regenerate Meta
+                  Regen Meta
                 </button>
               </div>
 
@@ -719,7 +943,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                     {formData.metaTitle || 'Loading title...'}
                   </div>
                   <div className="text-[#006621] text-sm mb-1 truncate">
-                    {formData.baseUrl}{formData.pageType !== 'Home' ? formData.pageType.toLowerCase().replace(/\s+/g, '-') + '/' : ''}
+                    {formData.baseUrl}{formData.pagePath}
                   </div>
                   <div className="text-[#4d5156] text-sm leading-relaxed line-clamp-2 italic">
                     {formData.metaDescription || 'Optimizing description...'}
@@ -734,7 +958,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
               <div className="p-4 bg-blue-50 border-t border-blue-100 flex gap-3">
                 <Info className="text-blue-500 shrink-0" size={18} />
                 <p className="text-xs text-blue-800 leading-normal">
-                  <strong>Branding Power:</strong> Business Logo and Primary Hero Images are now integrated into JSON-LD and OG tags for maximum search visibility and social click-through rates.
+                  <strong>{formData.pageType} Mode:</strong> Your output now includes optimized schema and meta tags for the {formData.pageType} page.
                 </p>
               </div>
             </div>
@@ -744,10 +968,10 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
       
       <footer className="mt-12 py-8 border-t bg-white">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-500 text-sm">
-          <p>© 2024 Advanced SEO Local Wizard. Premium JSON-LD Generator.</p>
+          <p>© 2024 Advanced SEO Local Wizard. Automatic Geocoding Enabled.</p>
           <div className="flex gap-4">
-            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Social-Enabled</span>
-            <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Asset-Linked</span>
+            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Blog Archive Schema</span>
+            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Local Business</span>
           </div>
         </div>
       </footer>

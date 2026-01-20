@@ -55,3 +55,41 @@ export const generateSeoContent = async (
     };
   }
 };
+
+export const getCoordinates = async (fullAddress: string): Promise<{ lat: string; lng: string } | null> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  
+  const prompt = `
+    Find the approximate GPS coordinates (latitude and longitude) for the following physical address.
+    Address: "${fullAddress}"
+    
+    Return the coordinates in JSON format.
+    Format:
+    {
+      "lat": "29.7604",
+      "lng": "-95.3698"
+    }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    const data = JSON.parse(response.text || '{}');
+    if (data.lat && data.lng) {
+      return {
+        lat: String(data.lat),
+        lng: String(data.lng)
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Geocoding Error:", error);
+    return null;
+  }
+};
