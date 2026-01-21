@@ -160,21 +160,13 @@ const App: React.FC = () => {
 
   const onPageTypeChange = (pt: PageType) => {
     let suggestedPath = '';
-    let parentName = '';
-    let parentPath = '';
-
+    
     if (pt === 'Service') {
       suggestedPath = formData.serviceType.toLowerCase().replace(/\s+/g, '-') + '.html';
-      parentName = '';
-      parentPath = '';
     } else if (pt === 'Contact') {
       suggestedPath = 'contact-us.html';
-      parentName = '';
-      parentPath = '';
     } else if (pt === 'Blog Archive') {
       suggestedPath = 'blog/';
-      parentName = '';
-      parentPath = '';
     } else if (pt !== 'Home') {
       suggestedPath = pt.toLowerCase().replace(/\s+/g, '-') + '.html';
     }
@@ -183,8 +175,8 @@ const App: React.FC = () => {
       ...p, 
       pageType: pt,
       pagePath: suggestedPath,
-      parentPageName: parentName,
-      parentPagePath: parentPath
+      parentPageName: '',
+      parentPagePath: ''
     }));
   };
 
@@ -307,7 +299,7 @@ const App: React.FC = () => {
       "image": primaryImageUrl,
       "telephone": phone,
       "email": email,
-      "priceRange": "$",
+      "priceRange": "$$",
       "address": {
         "@type": "PostalAddress",
         "streetAddress": address,
@@ -321,6 +313,8 @@ const App: React.FC = () => {
         "latitude": parseFloat(lat) || 0,
         "longitude": parseFloat(lng) || 0
       },
+      "openingHoursSpecification": openingHoursSpec,
+      "areaServed": areaServed.map(c => ({ "@type": "City", "name": `${c}, ${state}` })),
       "sameAs": socialLinks
     };
 
