@@ -238,8 +238,10 @@ const App: React.FC = () => {
     const finalSlug = pageType === 'Home' ? '' : (pagePath || pageType.toLowerCase().replace(/\s+/g, '-'));
     const canonical = finalSlug ? `${canonicalBase}${finalSlug.replace(/^\/+/, '')}${finalSlug.endsWith('/') ? '' : ''}` : canonicalBase;
     
-    const safeTitle = metaTitle || `${businessName} ${pageType} - ${serviceType} ${city}`;
-    const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for quality service.`;
+    // SEO Rule: No "Home" word and no redundantly added city to Business Name.
+    const cleanPageType = pageType === 'Home' ? '' : ` ${pageType}`;
+    const safeTitle = metaTitle || `${serviceType} - ${businessName}${cleanPageType} ${city}`;
+    const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for premium results.`;
 
     const breadcrumbs = [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": canonicalBase }
@@ -441,7 +443,7 @@ const App: React.FC = () => {
 <meta property="og:type" content="website" />
 <meta property="og:url" content="${canonical}" />
 <meta property="og:image" content="${primaryImageUrl}" />
-<meta property="og:site_name" content="${businessName} ${city} ${state}" />
+<meta property="og:site_name" content="${businessName}" />
 ${facebookUrl ? `<meta property="og:see_also" content="${facebookUrl}" />` : ''}
 
 <!-- Twitter Card -->
