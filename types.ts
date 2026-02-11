@@ -15,6 +15,11 @@ export interface FAQ {
   answer: string;
 }
 
+export interface Coupon {
+  name: string;
+  description: string;
+}
+
 export interface BlogPost {
   title: string;
   url: string;
@@ -41,6 +46,7 @@ export interface SeoData {
   zip: string;
   lat: string;
   lng: string;
+  serviceRadius: string;
   serviceType: ServiceType;
   areaServed: string[];
   relatedServices: string[];
@@ -57,6 +63,7 @@ export interface SeoData {
   parentPageName: string; 
   parentPagePath: string; 
   faqs: FAQ[];
+  coupons: Coupon[];
   blogPosts: BlogPost[];
   workingHours: WorkingHours;
   metaTitle: string;
@@ -64,11 +71,11 @@ export interface SeoData {
 }
 
 export const SERVICE_SCHEMA_MAP: Record<ServiceType, string> = {
-  'Air Duct Cleaning': 'HVACBusiness',
-  'Dryer Vent Cleaning': 'HVACBusiness',
-  'Water Heater Service': 'PlumbingBusiness',
-  'Plumbing': 'PlumbingBusiness',
+  'Air Duct Cleaning': 'HomeAndConstructionBusiness',
+  'Dryer Vent Cleaning': 'HomeAndConstructionBusiness',
+  'Water Heater Service': 'Plumber',
+  'Plumbing': 'Plumber',
   'Garage Door': 'HomeAndConstructionBusiness',
   'Locksmith': 'Locksmith',
-  'Carpet Cleaning': 'CleaningService'
+  'Carpet Cleaning': 'ProfessionalService'
 };

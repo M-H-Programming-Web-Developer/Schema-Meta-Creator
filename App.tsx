@@ -31,11 +31,14 @@ import {
   Rss,
   Mail,
   Phone,
-  Share2
+  Share2,
+  Target,
+  Tag,
+  Ticket
 } from 'lucide-react';
 import { Input } from './components/Input';
 import { CodeBlock } from './components/CodeBlock';
-import { SeoData, ServiceType, SERVICE_SCHEMA_MAP, PageType, FAQ, WorkingHours, BlogPost } from './types';
+import { SeoData, ServiceType, SERVICE_SCHEMA_MAP, PageType, FAQ, WorkingHours, BlogPost, Coupon } from './types';
 import { generateSeoContent, getCoordinates } from './services/geminiService';
 
 const DEFAULT_CITIES = ['Houston', 'Bellaire', 'Pasadena', 'Pearland', 'Sugar Land'];
@@ -59,6 +62,13 @@ const DEFAULT_BLOG_POSTS: BlogPost[] = [
   }
 ];
 
+const DEFAULT_COUPONS: Coupon[] = [
+  {
+    name: "$25 Off Service",
+    description: "Get a special discount on any cleaning or repair service. Limited time offer."
+  }
+];
+
 const App: React.FC = () => {
   const [formData, setFormData] = useState<SeoData>({
     businessName: 'Almo Air Duct Cleaning',
@@ -71,6 +81,7 @@ const App: React.FC = () => {
     zip: '77056',
     lat: '29.7407',
     lng: '-95.4636',
+    serviceRadius: '25',
     serviceType: 'Air Duct Cleaning',
     areaServed: DEFAULT_CITIES,
     relatedServices: ['AC Cleaning', 'Vent Sanitizing', 'Furnace Cleaning'],
@@ -87,6 +98,7 @@ const App: React.FC = () => {
     parentPageName: '',
     parentPagePath: '',
     faqs: DEFAULT_FAQS,
+    coupons: DEFAULT_COUPONS,
     blogPosts: DEFAULT_BLOG_POSTS,
     workingHours: {
       weekdayOpens: '08:00',
@@ -216,6 +228,23 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, faqs: prev.faqs.filter((_, i) => i !== index) }));
   };
 
+  const updateCoupon = (index: number, field: keyof Coupon, value: string) => {
+    const updated = [...formData.coupons];
+    updated[index][field] = value;
+    setFormData(prev => ({ ...prev, coupons: updated }));
+  };
+
+  const addCoupon = () => {
+    setFormData(prev => ({ 
+      ...prev, 
+      coupons: [...prev.coupons, { name: '', description: '' }] 
+    }));
+  };
+
+  const removeCoupon = (index: number) => {
+    setFormData(prev => ({ ...prev, coupons: prev.coupons.filter((_, i) => i !== index) }));
+  };
+
   const updateWorkingHours = (field: keyof WorkingHours, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -226,9 +255,9 @@ const App: React.FC = () => {
   const generatedCode = useMemo(() => {
     const { 
       businessName, baseUrl, phone, email, address, city, state, zip, 
-      lat, lng, serviceType, areaServed, relatedServices, themeColor, 
+      lat, lng, serviceRadius, serviceType, areaServed, relatedServices, themeColor, 
       faviconUrl, appleTouchIconUrl, logoUrl, primaryImageUrl, facebookUrl, twitterUrl, 
-      pageType, pagePath, parentPageName, parentPagePath, faqs, blogPosts, workingHours,
+      pageType, pagePath, parentPageName, parentPagePath, faqs, coupons, blogPosts, workingHours,
       metaTitle, metaDescription 
     } = formData;
     
@@ -238,10 +267,8 @@ const App: React.FC = () => {
     const finalSlug = pageType === 'Home' ? '' : (pagePath || pageType.toLowerCase().replace(/\s+/g, '-'));
     const canonical = finalSlug ? `${canonicalBase}${finalSlug.replace(/^\/+/, '')}${finalSlug.endsWith('/') ? '' : ''}` : canonicalBase;
     
-    // SEO Rule: No "Home" word and no redundantly added city to Business Name.
-    const cleanPageType = pageType === 'Home' ? '' : ` ${pageType}`;
-    const safeTitle = metaTitle || `${serviceType} - ${businessName}${cleanPageType} ${city}`;
-    const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for premium results.`;
+    const safeTitle = metaTitle || `${serviceType} - ${businessName} ${city}`;
+    const safeDesc = metaDescription || `Professional ${serviceType} in ${city}, ${state}. Contact ${businessName} for premium quality results.`;
 
     const breadcrumbs = [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": canonicalBase }
@@ -292,10 +319,50 @@ const App: React.FC = () => {
 
     const socialLinks = [facebookUrl, twitterUrl].filter(Boolean);
 
+    const radiusMeters = (parseFloat(serviceRadius) * 1609.34).toFixed(0);
+    const latNum = parseFloat(lat) || 0;
+    const lngNum = parseFloat(lng) || 0;
+
+    const fullAreaServed = [
+      ...areaServed.map(c => ({ "@type": "City", "name": `${c}, ${state}` })),
+      {
+        "@type": "GeoCircle",
+        "geoMidpoint": {
+          "@type": "GeoCoordinates",
+          "latitude": latNum,
+          "longitude": lngNum
+        },
+        "geoRadius": radiusMeters
+      }
+    ];
+
+    // Build Comprehensive Offer Catalog - Combined Services + Discounts
+    const allOffers = [
+      {
+        "@type": "Offer",
+        "itemOffered": { "@type": "Service", "name": serviceType }
+      },
+      ...relatedServices.map(rs => ({
+        "@type": "Offer",
+        "itemOffered": { "@type": "Service", "name": rs }
+      })),
+      ...coupons.map(c => ({
+        "@type": "Offer",
+        "name": c.name,
+        "description": c.description
+      }))
+    ];
+
+    const offerCatalog = {
+      "@type": "OfferCatalog",
+      "name": `${businessName} Service Catalog & Offers`,
+      "itemListElement": allOffers
+    };
+
     const commonBusiness = {
       "@type": schemaType,
       "@id": `${canonicalBase}#business`,
-      "name": `${businessName}, INC`,
+      "name": businessName,
       "url": canonicalBase,
       "logo": logoUrl,
       "image": primaryImageUrl,
@@ -312,13 +379,24 @@ const App: React.FC = () => {
       },
       "geo": {
         "@type": "GeoCoordinates",
-        "latitude": parseFloat(lat) || 0,
-        "longitude": parseFloat(lng) || 0
+        "latitude": latNum,
+        "longitude": lngNum
       },
       "openingHoursSpecification": openingHoursSpec,
-      "areaServed": areaServed.map(c => ({ "@type": "City", "name": `${c}, ${state}` })),
+      "areaServed": fullAreaServed,
+      "hasOfferCatalog": allOffers.length > 0 ? offerCatalog : undefined,
       "sameAs": socialLinks
     };
+
+    const faqSchemaObject = faqs.length > 0 ? {
+      "@type": "FAQPage",
+      "@id": `${canonical}#faqpage`,
+      "mainEntity": faqs.map(faq => ({
+        "@type": "Question",
+        "name": faq.question,
+        "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
+      }))
+    } : null;
 
     let specificSchema = "";
 
@@ -330,15 +408,17 @@ const App: React.FC = () => {
       "name": "${serviceType}",
       "url": "${canonical}",
       "provider": { "@id": "${canonicalBase}#business" },
-      "areaServed": ${JSON.stringify(areaServed.map(c => ({ "@type": "City", "name": `${c}, ${state}` })), null, 2).split('\n').join('\n      ')},
+      "areaServed": ${JSON.stringify(fullAreaServed, null, 2).split('\n').join('\n      ')},
       "hasOfferCatalog": {
         "@type": "OfferCatalog",
         "name": "${serviceType} Related Services",
         "itemListElement": [
-          ${relatedServices.map(rs => JSON.stringify({
-            "@type": "Offer",
-            "itemOffered": { "@type": "Service", "name": rs }
-          })).join(',\n          ')}
+          ${[
+            ...relatedServices.map(rs => ({
+              "@type": "Offer",
+              "itemOffered": { "@type": "Service", "name": rs }
+            }))
+          ].map(obj => JSON.stringify(obj)).join(',\n          ')}
         ]
       }
     }`;
@@ -378,19 +458,6 @@ const App: React.FC = () => {
       "name": "${safeTitle}",
       "mainEntity": { "@id": "${canonicalBase}#business" }
     }`;
-    } else if (pageType === 'FAQs') {
-      specificSchema = `,
-    {
-      "@type": "FAQPage",
-      "@id": "${canonical}#faqpage",
-      "mainEntity": [
-        ${faqs.map(faq => JSON.stringify({
-          "@type": "Question",
-          "name": faq.question,
-          "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
-        })).join(',\n        ')}
-      ]
-    }`;
     } else if (pageType === 'Locations') {
       specificSchema = `,
     {
@@ -414,9 +481,9 @@ const App: React.FC = () => {
     return `<!-- ✅ SEO-Edited HEAD (Clean + Modern + Local SEO) -->
 <meta charset="UTF-8">
 <title>${safeTitle}</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="${safeDesc}" />
 <link rel="canonical" href="${canonical}" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <!-- ✅ Robots (clean) -->
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
@@ -429,8 +496,8 @@ const App: React.FC = () => {
 <!-- ✅ Local SEO Power Tags -->
 <meta name="geo.region" content="US-${state}">
 <meta name="geo.placename" content="${city}">
-<meta name="geo.position" content="${lat};${lng}">
-<meta name="ICBM" content="${lat}, ${lng}">
+<meta name="geo.position" content="${latNum};${lngNum}">
+<meta name="ICBM" content="${latNum}, ${lngNum}">
 
 <!-- FavIcons -->
 <link rel="apple-touch-icon" href="${appleTouchIconUrl}">
@@ -476,7 +543,8 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
         "@type": "ImageObject",
         "url": "${primaryImageUrl}"
       }
-    }${specificSchema},
+    }${specificSchema}${faqSchemaObject ? `,
+    ${JSON.stringify(faqSchemaObject, null, 2).split('\n').join('\n    ')}` : ''},
     {
       "@type": "BreadcrumbList",
       "@id": "${canonical}#breadcrumbs",
@@ -492,12 +560,13 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
         <div className="flex items-center gap-2 text-slate-800">
           <HelpCircle size={18} className="text-blue-500" />
-          <h3 className="font-semibold text-sm">FAQ List</h3>
+          <h3 className="font-semibold text-sm">Global FAQs</h3>
         </div>
         <button onClick={addFaq} className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
           <Plus size={14} /> Add FAQ
         </button>
       </div>
+      <p className="text-[10px] text-slate-500 italic">Note: These FAQs will be included in the schema for ALL generated pages.</p>
       <div className="space-y-4">
         {formData.faqs.map((faq, idx) => (
           <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3 relative group">
@@ -524,6 +593,56 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+
+  const renderCouponEditor = () => (
+    <div className="pt-4 space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="flex items-center gap-2 text-slate-800">
+          <Ticket size={18} className="text-orange-500" />
+          <h3 className="font-semibold text-sm">Discounts & Coupons</h3>
+        </div>
+        <button onClick={addCoupon} className="text-xs text-orange-600 font-bold hover:underline flex items-center gap-1">
+          <Plus size={14} /> Add Offer
+        </button>
+      </div>
+      <div className="space-y-4">
+        {formData.coupons.map((coupon, idx) => (
+          <div key={idx} className="p-4 bg-orange-50/50 rounded-xl border border-orange-100 space-y-4 relative group">
+            <button 
+              onClick={() => removeCoupon(idx)}
+              className="absolute -right-2 -top-2 bg-white border border-red-200 text-red-500 p-1.5 rounded-full shadow-sm hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <Trash2 size={12} />
+            </button>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-orange-700">Offer Name</label>
+                <input 
+                  placeholder="Special Discount" 
+                  className="w-full px-2 py-1 bg-white border border-orange-200 rounded text-sm font-semibold outline-none focus:ring-1 focus:ring-orange-400"
+                  value={coupon.name}
+                  onChange={(e) => updateCoupon(idx, 'name', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-orange-700">Description</label>
+                <textarea 
+                  placeholder="Tell customers about the deal..." 
+                  rows={2}
+                  className="w-full px-2 py-1 bg-white border border-orange-200 rounded text-xs outline-none focus:ring-1 focus:ring-orange-400 resize-none"
+                  value={coupon.description}
+                  onChange={(e) => updateCoupon(idx, 'description', e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        {formData.coupons.length === 0 && (
+          <p className="text-xs text-slate-400 italic text-center py-2">No active coupons defined.</p>
+        )}
       </div>
     </div>
   );
@@ -764,6 +883,12 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                         />
                       </div>
                     </div>
+                    
+                    <div className="col-span-3 pt-2 text-center">
+                       <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5">
+                         <Target size={12} className="text-blue-500" /> Service Radius Locked: 25 Miles
+                       </span>
+                    </div>
                   </div>
                 </div>
 
@@ -816,7 +941,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                   </div>
                 </div>
 
-                {formData.pageType === 'Service' && (
+                {(formData.pageType === 'Service' || formData.pageType === 'Home') && (
                   <div className="pt-2 space-y-4">
                     <div className="flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
                       <Link2 size={18} className="text-blue-500" />
@@ -842,7 +967,8 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
                 )}
 
                 {renderHoursEditor()}
-                {formData.pageType === 'FAQs' && renderFaqEditor()}
+                {renderCouponEditor()}
+                {renderFaqEditor()}
               </div>
             </div>
           </div>
@@ -889,7 +1015,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
               <div className="p-4 bg-blue-50 border-t border-blue-100 flex gap-3">
                 <Info className="text-blue-500 shrink-0" size={18} />
                 <p className="text-xs text-blue-800 leading-normal">
-                  <strong>{formData.pageType} Mode:</strong> Your output now includes optimized schema and meta tags for the {formData.pageType} page.
+                  <strong>{formData.pageType} Mode:</strong> Your output now includes optimized schema (with shared GeoCircle, Global FAQs, and clean Discount Offer catalogs) and meta tags.
                 </p>
               </div>
             </div>
@@ -899,7 +1025,7 @@ ${twitterUrl ? `<meta name="twitter:site" content="@${twitterUrl.split('/').pop(
       
       <footer className="mt-12 py-8 border-t bg-white">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-500 text-sm">
-          <p>© 2024 Advanced SEO Local Wizard. Automatic Geocoding Enabled.</p>
+          <p>© 2024 Advanced SEO Local Wizard. Global FAQ Schema Injection Enabled.</p>
           <div className="flex gap-4">
             <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Blog Archive Schema</span>
             <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">Local Business</span>
